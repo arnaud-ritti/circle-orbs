@@ -2,10 +2,10 @@ version: 2.1
 description: |
     Sample orb description
 display:
-    home_url: https://github.com/donkeycode/circle-orbs
-    source_url: https://github.com/donkeycode/circle-orbs
+    home_url: https://github.com/agence-adeliom/circle-orbs
+    source_url: https://github.com/agence-adeliom/circle-orbs
 orbs:
-    utils: donkeycode/utils@0.0.2
+    utils: agence-adeliom/utils@0.0.1
 commands:
     compose_up:
         description: |
@@ -57,7 +57,7 @@ commands:
                         sudo ./aws/install -u
                     fi
 
-                    AWS_DEFAULT_REGION=${$AWS_REGION:=eu-west-1} AWS_ACCESS_KEY_ID=$DOCKER_USER AWS_SECRET_ACCESS_KEY=$DOCKER_PASS aws ecr get-login-password |
+                    AWS_DEFAULT_REGION=${AWS_REGION:=eu-west-1} AWS_ACCESS_KEY_ID=$DOCKER_USER AWS_SECRET_ACCESS_KEY=$DOCKER_PASS aws ecr get-login-password |
                       docker login \
                         --username AWS \
                         --password-stdin \
@@ -107,9 +107,16 @@ jobs:
                 type: boolean
         steps:
             - utils/install_git
-            - run:
-                command: apk add openssh
+            - restore_cache:
+                keys:
+                    - source-docker-v1-{{ .Branch }}-{{ .Revision }}
+                    - source-docker-v1-{{ .Branch }}-
+                    - source-docker-v1-
             - checkout
+            - save_cache:
+                key: source-docker-v1-{{ .Branch }}-{{ .Revision }}
+                paths:
+                    - .git
             - setup_remote_docker:
                 docker_layer_caching: true
             - when:
@@ -170,7 +177,16 @@ jobs:
         steps:
             - setup_remote_docker:
                 docker_layer_caching: true
+            - restore_cache:
+                keys:
+                    - source-v1-{{ .Branch }}-{{ .Revision }}
+                    - source-v1-{{ .Branch }}-
+                    - source-v1-
             - checkout
+            - save_cache:
+                key: source-v1-{{ .Branch }}-{{ .Revision }}
+                paths:
+                    - .git
             - run:
                 command: |-
                     cat \<<EOF >  ~/project/.circleci/push_images.sh
@@ -225,7 +241,7 @@ examples:
         usage:
             version: "2.1"
             orbs:
-                docker: donkeycode/docker@0.0.1
+                docker: agence-adeliom/docker@0.0.1
             jobs:
                 sample:
                     executor: docker/default

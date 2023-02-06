@@ -19,11 +19,24 @@ parameters:
     description: >
       Is the project need to install encore deps ?
     type: boolean
+  node_version:
+    default: '18'
+    type: string
 steps:
+  - utils/install_ssh
   - utils/install_git
-  - run:
-      command: apk add openssh
+  - utils/install_bash
+  - utils/install_coreutils
+  - restore_cache:
+      keys:
+          - &source-symfony-cache source-symfony-v1-{{ .Branch }}-{{ .Revision }}
+          - source-symfony-v1-{{ .Branch }}-
+          - source-symfony-v1-
   - checkout
+  - save_cache:
+      key: *source-symfony-cache
+      paths:
+          - ".git"
   - restore_cache:
       keys:
         - v1-dependencies-<<parameters.symfony_folder>>-{{ checksum "~/project/<<parameters.symfony_folder>>/composer.lock" }}
@@ -40,28 +53,20 @@ steps:
   - when:
       condition: <<parameters.use_encore>>
       steps:
-        - node/install
-        - restore_cache:
-            keys:
-              - v1-npmdependencies-<<parameters.symfony_folder>>-{{ checksum "~/project/<<parameters.symfony_folder>>/package-lock.json" }}
-              # fallback to using the latest cache if no exact match is found
-              - v1-npmdependencies-<<parameters.symfony_folder>>-
+        - node/install-nvm
+        - node/install-node:
+            node-version: <<parameters.node_version>>
+        - node/install-packages:
+            app-dir: ~/project/<<parameters.symfony_folder>>/
+            cache-path: ~/project/<<parameters.symfony_folder>>/node_modules
+            override-ci-command: npm install
+        - node/run-command:
+            app-dir: ~/project/<<parameters.symfony_folder>>/
+            npm-run: build
         - run:
-            name: Install node deps
+            command: bin/console assets:install
+            name: Reinstall assets
             working_directory: ~/project/<<parameters.symfony_folder>>
-            command: npm install
-        - save_cache:
-            paths:
-              - <<parameters.symfony_folder>>/node_modules
-            key: v1-npmdependencies-<<parameters.symfony_folder>>-{{ checksum "~/project/<<parameters.symfony_folder>>/package-lock.json" }}
-        - run:
-            name: Build assets
-            working_directory: ~/project/<<parameters.symfony_folder>>
-            command: npm run build
-        - run:
-            name: Reinstall assets 
-            working_directory: ~/project/<<parameters.symfony_folder>>
-            command: bin/console assets:install  
   - save_cache:
       paths:
         - <<parameters.symfony_folder>>/vendor

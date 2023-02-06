@@ -2,13 +2,12 @@ version: 2.1
 description: |
     Help to deploy symfony projects
 display:
-    home_url: https://github.com/donkeycode/circle-orbs
-    source_url: https://github.com/donkeycode/circle-orbs
+    home_url: https://github.com/agence-adeliom/circle-orbs
+    source_url: https://github.com/agence-adeliom/circle-orbs
 orbs:
-    docker: donkeycode/docker@0.0.14
-    node: donkeycode/node@0.0.6
-    utils: donkeycode/utils@0.0.1
-commands: {}
+    docker: agence-adeliom/docker@0.0.3
+    node: agence-adeliom/node@0.0.6
+    utils: agence-adeliom/utils@0.0.9
 executors:
     default:
         description: |
@@ -74,9 +73,17 @@ jobs:
                 type: boolean
         steps:
             - utils/install_git
-            - run:
-                command: apk add openssh
+            - utils/install_bash
+            - restore_cache:
+                keys:
+                    - source-symfony-v1-{{ .Branch }}-{{ .Revision }}
+                    - source-symfony-v1-{{ .Branch }}-
+                    - source-symfony-v1-
             - checkout
+            - save_cache:
+                key: source-symfony-v1-{{ .Branch }}-{{ .Revision }}
+                paths:
+                    - .git
             - setup_remote_docker:
                 docker_layer_caching: true
             - restore_cache:
@@ -201,9 +208,16 @@ jobs:
                 type: boolean
         steps:
             - utils/install_git
-            - run:
-                command: apk add openssh
+            - restore_cache:
+                keys:
+                    - source-v1-{{ .Branch }}-{{ .Revision }}
+                    - source-v1-{{ .Branch }}-
+                    - source-v1-
             - checkout
+            - save_cache:
+                key: source-v1-{{ .Branch }}-{{ .Revision }}
+                paths:
+                    - .git
             - restore_cache:
                 keys:
                     - v1-dependencies-<<parameters.symfony_folder>>-{{ checksum "~/project/<<parameters.symfony_folder>>/composer.lock" }}
@@ -235,6 +249,9 @@ jobs:
                 description: |
                     Pick a specific donkeycode/php-nginx-symfony image variant: https://hub.docker.com/r/donkeycode/php-nginx-symfony/tags
                 type: string
+            node_version:
+                default: "18"
+                type: string
             symfony_folder:
                 default: apps/api
                 description: The symfony base directory
@@ -245,10 +262,20 @@ jobs:
                     Is the project need to install encore deps ?
                 type: boolean
         steps:
+            - utils/install_ssh
             - utils/install_git
-            - run:
-                command: apk add openssh
+            - utils/install_bash
+            - utils/install_coreutils
+            - restore_cache:
+                keys:
+                    - source-symfony-v1-{{ .Branch }}-{{ .Revision }}
+                    - source-symfony-v1-{{ .Branch }}-
+                    - source-symfony-v1-
             - checkout
+            - save_cache:
+                key: source-symfony-v1-{{ .Branch }}-{{ .Revision }}
+                paths:
+                    - .git
             - restore_cache:
                 keys:
                     - v1-dependencies-<<parameters.symfony_folder>>-{{ checksum "~/project/<<parameters.symfony_folder>>/composer.lock" }}
@@ -264,23 +291,16 @@ jobs:
             - when:
                 condition: <<parameters.use_encore>>
                 steps:
-                    - node/install
-                    - restore_cache:
-                        keys:
-                            - v1-npmdependencies-<<parameters.symfony_folder>>-{{ checksum "~/project/<<parameters.symfony_folder>>/package-lock.json" }}
-                            - v1-npmdependencies-<<parameters.symfony_folder>>-
-                    - run:
-                        command: npm install
-                        name: Install node deps
-                        working_directory: ~/project/<<parameters.symfony_folder>>
-                    - save_cache:
-                        key: v1-npmdependencies-<<parameters.symfony_folder>>-{{ checksum "~/project/<<parameters.symfony_folder>>/package-lock.json" }}
-                        paths:
-                            - <<parameters.symfony_folder>>/node_modules
-                    - run:
-                        command: npm run build
-                        name: Build assets
-                        working_directory: ~/project/<<parameters.symfony_folder>>
+                    - node/install-nvm
+                    - node/install-node:
+                        node-version: <<parameters.node_version>>
+                    - node/install-packages:
+                        app-dir: ~/project/<<parameters.symfony_folder>>/
+                        cache-path: ~/project/<<parameters.symfony_folder>>/node_modules
+                        override-ci-command: npm install
+                    - node/run-command:
+                        app-dir: ~/project/<<parameters.symfony_folder>>/
+                        npm-run: build
                     - run:
                         command: bin/console assets:install
                         name: Reinstall assets
@@ -300,7 +320,7 @@ examples:
         usage:
             version: "2.1"
             orbs:
-                symfony: donkeycode/symfony@0.0.1
+                symfony: agence-adeliom/symfony@0.0.1
             workflows:
                 use-my-orb:
                     jobs:

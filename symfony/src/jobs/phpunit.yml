@@ -27,9 +27,16 @@ parameters:
     type: string
 steps:
   - utils/install_git
-  - run:
-      command: apk add openssh
+  - restore_cache:
+      keys:
+          - &source-cache source-v1-{{ .Branch }}-{{ .Revision }}
+          - source-v1-{{ .Branch }}-
+          - source-v1-
   - checkout
+  - save_cache:
+      key: *source-cache
+      paths:
+          - ".git"
   - restore_cache:
       name: Get site deps
       keys:

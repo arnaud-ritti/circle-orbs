@@ -1,0 +1,6 @@
+description: >
+  Install coreutils
+steps:
+  - run:
+      name: Install coreutils
+      command: apk update && apk add coreutils libstdc++

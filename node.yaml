@@ -1,13 +1,11 @@
-# This code is licensed from CircleCI to the user under the MIT license.
-# See here for details: https://circleci.com/developer/orbs/licensing
 version: 2.1
 description: |
-    Inspired from circleci orbs for alpine
+    Easily install Node.js and its package managers (npm, yarn). Best of all, install your packages with caching enabled by default. Supports Linux x86_64, MacOS, and Arm64 V8.
 display:
-    home_url: https://nodejs.org/
-    source_url: https://github.com/circleci-public/node-orb
+    home_url: https://github.com/agence-adeliom/circle-orbs
+    source_url: https://github.com/agence-adeliom/circle-orbs
 commands:
-    install:
+    install-node:
         description: |
             Install custom versions of Node.js, and optionally NPM/Yarn, in any
             execution environment (Docker/Linux, macOS, machine) that does not have
@@ -15,17 +13,9 @@ commands:
 
             Recommendation: It is highly recommended to utilize an environment such as Docker with Node preinstalled.
         parameters:
-            install-npm:
-                default: true
-                description: Install NPM?
-                type: boolean
             install-yarn:
                 default: false
                 description: Install Yarn?
-                type: boolean
-            lts:
-                default: false
-                description: Install the latest LTS version by default.
                 type: boolean
             node-install-dir:
                 default: /usr/local
@@ -33,14 +23,9 @@ commands:
                     Where should Node.js be installed?
                 type: string
             node-version:
-                default: node
+                default: ""
                 description: |
-                    Specify the full version tag to install. To install the latest LTS version, set `lts` to true. The latest (current) version of Node.js will be installed by default. For a full list of releases, see the following: https://nodejs.org/en/download/releases
-                type: string
-            npm-version:
-                default: latest
-                description: |
-                    Pick a version of NPM to install: https://nodejs.org/en/download/releases
+                    Specify the full version tag to install. To install the latest version, set the version to `latest`. If unspecified, the version listed in .nvmrc will be installed. If no .nvmrc file exists the active LTS version of Node.js will be installed by default. For a full list of releases, see the following: https://nodejs.org/en/download/releases
                 type: string
             yarn-version:
                 default: ""
@@ -49,65 +34,62 @@ commands:
                 type: string
         steps:
             - run:
-                command: |
-                    # Only install nvm if it's not already installed
-                    # Nvm not yet working 
-                    apk add --no-cache nodejs npm
-                    # if command -v nvm &> /dev/null; then
-                    #     echo "nvm is already installed. Skipping nvm install.";
-                    # else
-                    #     curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.38.0/install.sh | bash;
-                    #     echo 'export NVM_DIR="$HOME/.nvm"' >> $BASH_ENV;
-                    #     echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> $BASH_ENV;
-                    #     source $BASH_ENV;
-                    # fi
+                command: |4
+                    # shellcheck source=/dev/null
+                    source "$BASH_ENV";
 
-                    # if [ "$NODE_PARAM_LTS" = "1" ]; then
-                    #     nvm install --lts
-                    # else
-                    #     nvm install "$NODE_PARAM_VERSION"
-                    #     nvm alias default "$NODE_PARAM_VERSION"
-                    #     echo 'nvm use default &>/dev/null' >> $BASH_ENV
-                    # fi
+                    # See: https://github.com/nvm-sh/nvm#usage
+                    if [ "$NODE_PARAM_VERSION" = "latest" ]; then
+                        # When no version is specified we default to the latest version of Node
+                        NODE_ORB_INSTALL_VERSION=$(nvm ls-remote | tail -n1 | grep -Eo 'v[0-9]+\.[0-9]+\.[0-9]+')
+                        nvm install "$NODE_ORB_INSTALL_VERSION" # aka nvm install node. We're being explicit here.
+                        nvm alias default "$NODE_ORB_INSTALL_VERSION"
+                    elif [ -n "$NODE_PARAM_VERSION" ] && [ "$NODE_PARAM_VERSION" != "lts" ]; then
+                        nvm install "$NODE_PARAM_VERSION"
+                        nvm alias default "$NODE_PARAM_VERSION"
+                    elif [ -f ".nvmrc" ]; then
+                        NVMRC_SPECIFIED_VERSION=$(<.nvmrc)
+                        nvm install "$NVMRC_SPECIFIED_VERSION"
+                        nvm alias default "$NVMRC_SPECIFIED_VERSION"
+                    else
+                        nvm install --lts
+                        nvm alias default lts/*
+                    fi
+
+                    echo 'nvm use default &>/dev/null' >> "$BASH_ENV"
                 environment:
-                    NODE_PARAM_LTS: <<parameters.lts>>
                     NODE_PARAM_VERSION: <<parameters.node-version>>
-                name: Install Node.js <<^parameters.lts>> <<parameters.node-version>> <</parameters.lts>> <<#parameters.lts>> LTS <</parameters.lts>>
-            - when:
-                condition: <<parameters.install-npm>>
-                steps:
-                    - install-npm:
-                        version: <<parameters.npm-version>>
+                name: Install Node.js <<parameters.node-version>>
             - when:
                 condition: <<parameters.install-yarn>>
                 steps:
                     - install-yarn:
                         version: <<parameters.yarn-version>>
-    install-npm:
+    install-nvm:
         description: |
-            Install/upgrade the NPM package manager to a custom version. Requires an existing installation of Node.js; if none exists, use this orb's `install` command.
-        parameters:
-            version:
-                default: latest
-                description: |
-                    Pick a version of NPM to install: https://nodejs.org/en/download/releases
-                type: string
+            Install custom versions of Node.js, and optionally NPM/Yarn, in any
+            execution environment (Docker/Linux, macOS, machine) that does not have
+            it preinstalled.
+
+            Recommendation: It is highly recommended to utilize an environment such as Docker with Node preinstalled.
         steps:
             - run:
-                command: |
-                    apk add --no-cache npm
-                    npm i -g npm@latest
-                environment:
-                    NODE_PARAM_NPM_VERSION: <<parameters.version>>
-                name: Install NPM
+                command: "# Only install nvm if it's not already installed\nif command -v nvm &> /dev/null; then\n    echo \"nvm is already installed. Skipping nvm install.\";\nelse\n    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash;\n    \n    echo 'export NVM_DIR=\"$HOME/.nvm\"' >> \"$BASH_ENV\";\n    echo '[ -s \"$NVM_DIR/nvm.sh\" ] && \\. \"$NVM_DIR/nvm.sh\" --no-use' >> \"$BASH_ENV\";\n\n    if grep Alpine /etc/issue > /dev/null 2>&1; then\n    echo 'export NVM_NODEJS_ORG_MIRROR=https://unofficial-builds.nodejs.org/download/release' >> \"$BASH_ENV\";\n    echo 'export NVM_IOJS_ORG_MIRROR=https://example.com' >> \"$BASH_ENV\";\n    echo 'nvm_get_arch() { nvm_echo x64-musl; }' >> \"$BASH_ENV\";\n    fi\n    \n    # shellcheck source=/dev/null\n    source \"$BASH_ENV\";\nfi\n"
+                name: Install NVM
     install-packages:
         description: |
-            Install your Node packages with automated caching and best practices applied.
+            Install your Node packages with automated caching and best practices applied. Requires lock file.
         parameters:
             app-dir:
                 default: .
                 description: Path to the directory containing your package.json file. Not needed if package.json lives in the root.
                 type: string
+            cache-only-lockfile:
+                default: true
+                description: |
+                    If true, package.json will be ignored in the cache key. Useful for projects where package.json changes do not always invalidate dependencies.
+                    Note: package.json will still be the final fallback key incase a project is not configured with a lock file.
+                type: boolean
             cache-path:
                 default: ""
                 description: |
@@ -117,6 +99,17 @@ commands:
                 default: v1
                 description: Change the default cache version if you need to clear the cache for any reason.
                 type: string
+            check-cache:
+                default: never
+                description: |
+                    Yarn berry only for Zero install support -
+                    Use 'always' to always --check-cache argument to yarn install.
+                    Use 'detect' to enable caching of yarn.lock and to only add when required.
+                enum:
+                    - never
+                    - always
+                    - detect
+                type: enum
             include-branch-in-cache-key:
                 default: true
                 description: |
@@ -125,15 +118,16 @@ commands:
             override-ci-command:
                 default: ""
                 description: |
-                    By default, packages will be installed with "npm ci" or "yarn install --frozen-lockfile".
+                    By default, packages will be installed with "npm ci", "yarn install --frozen-lockfile" or "yarn install --immutable".
                     Optionally supply a custom package installation command, with any additional flags needed.
                 type: string
             pkg-manager:
                 default: npm
-                description: Select the default node package manager to use.
+                description: Select the default node package manager to use. NPM v5+ Required.
                 enum:
                     - npm
                     - yarn
+                    - yarn-berry
                 type: enum
             with-cache:
                 default: true
@@ -141,43 +135,55 @@ commands:
                 type: boolean
         steps:
             - run:
-                command: |
+                command: |-
+                    # Fail if package.json does not exist in working directory
+
                     if [ ! -f "package.json" ]; then
-                      echo
-                      echo "---"
-                      echo "Unable to find your package.json file. Did you forget to set the app-dir parameter?"
-                      echo "---"
-                      echo
-                      echo "Current directory: $(pwd)"
-                      echo
-                      echo
-                      echo "List directory: "
-                      echo
-                      ls
-                      exit 1
+                        echo
+                        echo "---"
+                        echo "Unable to find your package.json file. Did you forget to set the app-dir parameter?"
+                        echo "---"
+                        echo
+                        echo "Current directory: $(pwd)"
+                        echo
+                        echo
+                        echo "List directory: "
+                        echo
+                        ls
+                        exit 1
                     fi
-                name: Checking for package.json.
+                name: Checking for package.json
                 working_directory: <<parameters.app-dir>>
             - when:
                 condition: << parameters.with-cache >>
                 steps:
                     - run:
                         command: |
-                            if [ -f "package-lock.json" ]; then
-                              echo "Found package-lock.json file, assuming lockfile"
-                              cp package-lock.json /tmp/node-project-lockfile
-                            elif [ -f "npm-shrinkwrap.json" ]; then
-                              echo "Found npm-shrinkwrap.json file, assuming lockfile"
-                              cp npm-shrinkwrap.json /tmp/node-project-lockfile
-                            elif [ -f "yarn.lock" ]; then
-                              echo "Found yarn.lock file, assuming lockfile"
-                              cp yarn.lock /tmp/node-project-lockfile
+                            TARGET_DIR="/tmp"
+                            if [ -n "$HOMEDRIVE" ]; then
+                                TARGET_DIR="$HOMEDRIVE\\tmp"
                             fi
+
+                            # Link corresponding lock file to a temporary file used by cache commands
+                            if [ -f "package-lock.json" ]; then
+                                echo "Found package-lock.json file, assuming lockfile"
+                                cp package-lock.json $TARGET_DIR/node-project-lockfile
+                            elif [ -f "npm-shrinkwrap.json" ]; then
+                                echo "Found npm-shrinkwrap.json file, assuming lockfile"
+                                cp npm-shrinkwrap.json $TARGET_DIR/node-project-lockfile
+                            elif [ -f "yarn.lock" ]; then
+                                echo "Found yarn.lock file, assuming lockfile"
+                                cp yarn.lock $TARGET_DIR/node-project-lockfile
+                            fi
+
+                            cp package.json $TARGET_DIR/node-project-package.json
                         name: Determine lockfile
                         working_directory: <<parameters.app-dir>>
                     - restore_cache:
                         keys:
-                            - node-deps-<<parameters.cache-version>>-<<#parameters.include-branch-in-cache-key>>{{ .Branch }}-<</parameters.include-branch-in-cache-key>>{{ checksum "/tmp/node-project-lockfile" }}-{{ arch }}
+                            - node-deps-{{ arch }}-<<parameters.cache-version>>-<<#parameters.include-branch-in-cache-key>>{{ .Branch }}-<</parameters.include-branch-in-cache-key>><<^parameters.cache-only-lockfile>>{{ checksum "/tmp/node-project-package.json" }}-<</parameters.cache-only-lockfile>>{{ checksum "/tmp/node-project-lockfile" }}
+                            - node-deps-{{ arch }}-<<parameters.cache-version>>-<<#parameters.include-branch-in-cache-key>>{{ .Branch }}-<</parameters.include-branch-in-cache-key>>{{ checksum "/tmp/node-project-package.json" }}
+                            - node-deps-{{ arch }}-<<parameters.cache-version>>-<<#parameters.include-branch-in-cache-key>>{{ .Branch }}-<</parameters.include-branch-in-cache-key>>
             - when:
                 condition:
                     equal:
@@ -185,13 +191,32 @@ commands:
                         - << parameters.pkg-manager >>
                 steps:
                     - run:
-                        command: |
-                            if [[ ! -z "<< parameters.override-ci-command >>" ]]; then
-                              echo "Running override package installation command:"
-                              << parameters.override-ci-command >>
-                            else
-                              npm ci
+                        command: |-
+                            source "$BASH_ENV";
+
+                            if command -v nvm &> /dev/null; then
+                                if [ -f ".nvmrc" ]; then
+                                    NVMRC_SPECIFIED_VERSION=$(<.nvmrc)
+                                    nvm install "$NVMRC_SPECIFIED_VERSION"
+                                    nvm use
+                                fi
                             fi
+
+                            # Configure npm cache path if provided
+                            if [[ -n "$PARAM_CACHE_PATH" ]]; then
+                                npm config set cache "$PARAM_CACHE_PATH"
+                            fi
+
+                            # Run override ci command if provided, otherwise run default npm install
+                            if [[ -n "$PARAM_OVERRIDE_COMMAND" ]]; then
+                                echo "Running override package installation command:"
+                                eval "$PARAM_OVERRIDE_COMMAND"
+                            else
+                                npm ci
+                            fi
+                        environment:
+                            PARAM_CACHE_PATH: << parameters.cache-path >>
+                            PARAM_OVERRIDE_COMMAND: << parameters.override-ci-command >>
                         name: Installing NPM packages
                         working_directory: <<parameters.app-dir>>
                     - when:
@@ -201,14 +226,14 @@ commands:
                                 condition: << parameters.cache-path >>
                                 steps:
                                     - save_cache:
-                                        key: node-deps-<<parameters.cache-version>>-<<#parameters.include-branch-in-cache-key>>{{ .Branch }}-<</parameters.include-branch-in-cache-key>>{{ checksum "/tmp/node-project-lockfile" }}-{{ arch }}
+                                        key: node-deps-{{ arch }}-<<parameters.cache-version>>-<<#parameters.include-branch-in-cache-key>>{{ .Branch }}-<</parameters.include-branch-in-cache-key>><<^parameters.cache-only-lockfile>>{{ checksum "/tmp/node-project-package.json" }}-<</parameters.cache-only-lockfile>>{{ checksum "/tmp/node-project-lockfile" }}
                                         paths:
-                                            - <<parameters.cache-path>>
+                                            - << parameters.cache-path >>
                             - unless:
                                 condition: << parameters.cache-path >>
                                 steps:
                                     - save_cache:
-                                        key: node-deps-<<parameters.cache-version>>-<<#parameters.include-branch-in-cache-key>>{{ .Branch }}-<</parameters.include-branch-in-cache-key>>{{ checksum "/tmp/node-project-lockfile" }}-{{ arch }}
+                                        key: node-deps-{{ arch }}-<<parameters.cache-version>>-<<#parameters.include-branch-in-cache-key>>{{ .Branch }}-<</parameters.include-branch-in-cache-key>><<^parameters.cache-only-lockfile>>{{ checksum "/tmp/node-project-package.json" }}-<</parameters.cache-only-lockfile>>{{ checksum "/tmp/node-project-lockfile" }}
                                         paths:
                                             - ~/.npm
             - when:
@@ -218,13 +243,17 @@ commands:
                         - << parameters.pkg-manager >>
                 steps:
                     - run:
-                        command: |
-                            if [[ ! -z "<< parameters.override-ci-command >>" ]]; then
-                              echo "Running override package installation command:"
-                              << parameters.override-ci-command >>
+                        command: |-
+                            # Run override ci command if provided, otherwise run default yarn install
+                            if [[ -n "$PARAM_OVERRIDE_COMMAND" ]]; then
+                                echo "Running override package installation command:"
+                                eval "$PARAM_OVERRIDE_COMMAND"
                             else
-                              yarn install --frozen-lockfile
+                                yarn install --frozen-lockfile
                             fi
+                        environment:
+                            PARAM_OVERRIDE_COMMAND: << parameters.override-ci-command >>
+                            YARN_CACHE_FOLDER: << parameters.cache-path >>
                         name: Installing YARN packages
                         working_directory: <<parameters.app-dir>>
                     - when:
@@ -234,16 +263,115 @@ commands:
                                 condition: << parameters.cache-path >>
                                 steps:
                                     - save_cache:
-                                        key: node-deps-<<parameters.cache-version>>-<<#parameters.include-branch-in-cache-key>>{{ .Branch }}-<</parameters.include-branch-in-cache-key>>{{ checksum "/tmp/node-project-lockfile" }}-{{ arch }}
+                                        key: node-deps-{{ arch }}-<<parameters.cache-version>>-<<#parameters.include-branch-in-cache-key>>{{ .Branch }}-<</parameters.include-branch-in-cache-key>><<^parameters.cache-only-lockfile>>{{ checksum "/tmp/node-project-package.json" }}-<</parameters.cache-only-lockfile>>{{ checksum "/tmp/node-project-lockfile" }}
                                         paths:
                                             - <<parameters.cache-path>>
                             - unless:
                                 condition: << parameters.cache-path >>
                                 steps:
                                     - save_cache:
-                                        key: node-deps-<<parameters.cache-version>>-<<#parameters.include-branch-in-cache-key>>{{ .Branch }}-<</parameters.include-branch-in-cache-key>>{{ checksum "/tmp/node-project-lockfile" }}-{{ arch }}
+                                        key: node-deps-{{ arch }}-<<parameters.cache-version>>-<<#parameters.include-branch-in-cache-key>>{{ .Branch }}-<</parameters.include-branch-in-cache-key>><<^parameters.cache-only-lockfile>>{{ checksum "/tmp/node-project-package.json" }}-<</parameters.cache-only-lockfile>>{{ checksum "/tmp/node-project-lockfile" }}
                                         paths:
                                             - <<parameters.app-dir>>/node_modules
+            - when:
+                condition:
+                    equal:
+                        - yarn-berry
+                        - << parameters.pkg-manager >>
+                steps:
+                    - when:
+                        condition:
+                            equal:
+                                - detect
+                                - << parameters.check-cache >>
+                        steps:
+                            - restore_cache:
+                                keys:
+                                    - yarn-berry-{{ arch }}-<<parameters.cache-version>>-<<#parameters.include-branch-in-cache-key>>{{ .Branch }}-<</parameters.include-branch-in-cache-key>>{{ checksum "/tmp/yarn-zero-lockfile" }}
+                                    - yarn-berry-{{ arch }}-<<parameters.cache-version>>-<<#parameters.include-branch-in-cache-key>>{{ .Branch }}-<</parameters.include-branch-in-cache-key>>
+                    - run:
+                        command: |-
+                            # Run override ci command if provided, otherwise run default yarn install
+                            # See: https://yarnpkg.com/configuration/yarnrc/#cacheFolder
+                            if [[ -n "$PARAM_CACHE_PATH" ]]; then
+                                yarn config set cacheFolder "$PARAM_CACHE_PATH"
+                            fi
+
+                            if [[ -n "$PARAM_OVERRIDE_COMMAND" ]]; then
+                                echo "Running override package installation command:"
+                                eval "$PARAM_OVERRIDE_COMMAND"
+                            else
+                                # If a cache folder is already present, then we use Yarn Zero installs
+                                # See: https://yarnpkg.com/features/zero-installs
+                                if [[ -e "$PARAM_CACHE_PATH" ]]; then
+                                    # See: https://yarnpkg.com/features/zero-installs#does-it-have-security-implications
+                                    YARN_LOCKFILE_PATH="/tmp/yarn-zero-lockfile"
+
+                                    if [[ "$PARAM_CHECK_CACHE" == "detect" ]]; then
+                                        if [[ ! -f "$YARN_LOCKFILE_PATH" ]]; then
+                                            echo "No yarn zero lockfile cached. Enabling check cache this run."
+                                            ENABLE_CHECK_CACHE="true"
+                                            elif [[ $(diff -q "$YARN_LOCKFILE_PATH" yarn.lock) ]]; then
+                                            echo "Detected changes in lockfile. Enabling check cache this run."
+                                            rm -f "$YARN_LOCKFILE_PATH"
+                                            ENABLE_CHECK_CACHE="true"
+                                        else
+                                            echo "No changes detected in lockfile. Skipping check cache this run."
+                                        fi
+                                    fi
+
+                                    if [[ "$PARAM_CHECK_CACHE" == "always" || -n "$ENABLE_CHECK_CACHE" ]]; then
+                                        set -- "$@" --check-cache
+                                    fi
+
+                                    yarn install --immutable --immutable-cache "$@"
+
+                                    if [[ "$PARAM_CHECK_CACHE" == "detect" && -n "$ENABLE_CHECK_CACHE" ]]; then
+                                        cp yarn.lock "$YARN_LOCKFILE_PATH"
+                                    fi
+                                else
+                                    yarn install --immutable
+                                fi
+                            fi
+                        environment:
+                            PARAM_CACHE_PATH: << parameters.cache-path >>
+                            PARAM_CHECK_CACHE: << parameters.check-cache >>
+                            PARAM_OVERRIDE_COMMAND: << parameters.override-ci-command >>
+                        name: Installing YARN packages
+                        working_directory: <<parameters.app-dir>>
+                    - when:
+                        condition:
+                            equal:
+                                - detect
+                                - << parameters.check-cache >>
+                        steps:
+                            - save_cache:
+                                key: yarn-berry-{{ arch }}-<<parameters.cache-version>>-<<#parameters.include-branch-in-cache-key>>{{ .Branch }}-<</parameters.include-branch-in-cache-key>>{{ checksum "/tmp/yarn-zero-lockfile" }}
+                                paths:
+                                    - <<parameters.cache-path>>
+                    - when:
+                        condition: << parameters.with-cache >>
+                        steps:
+                            - when:
+                                condition: << parameters.cache-path >>
+                                steps:
+                                    - save_cache:
+                                        key: node-deps-{{ arch }}-<<parameters.cache-version>>-<<#parameters.include-branch-in-cache-key>>{{ .Branch }}-<</parameters.include-branch-in-cache-key>><<^parameters.cache-only-lockfile>>{{ checksum "/tmp/node-project-package.json" }}-<</parameters.cache-only-lockfile>>{{ checksum "/tmp/node-project-lockfile" }}
+                                        paths:
+                                            - <<parameters.cache-path>>
+                            - unless:
+                                condition: << parameters.cache-path >>
+                                steps:
+                                    - save_cache:
+                                        key: node-deps-{{ arch }}-<<parameters.cache-version>>-<<#parameters.include-branch-in-cache-key>>{{ .Branch }}-<</parameters.include-branch-in-cache-key>><<^parameters.cache-only-lockfile>>{{ checksum "/tmp/node-project-package.json" }}-<</parameters.cache-only-lockfile>>{{ checksum "/tmp/node-project-lockfile" }}
+                                        paths:
+                                            - <<parameters.app-dir>>/.yarn/cache
+            - when:
+                condition: << parameters.with-cache >>
+                steps:
+                    - run:
+                        command: rm -f /tmp/node-project-lockfile /tmp/node-project-package.json /tmp/yarn-zero-lockfile
+                        name: Remove temporary links
     install-yarn:
         description: |
             Install a custom version of the Yarn package manager
@@ -261,8 +389,7 @@ commands:
                     # FUNCTIONS
                     get_yarn_version () {
                         if [[ "$NODE_PARAM_YARN_VERSION" == "" ]]; then
-                        YARN_ORB_VERSION=$(curl -Ls -o /dev/null -w %{url_effective} \
-                            "https://github.com/yarnpkg/yarn/releases/latest" | sed 's:.*/::' | cut -d 'v' -f 2 | cut -d 'v' -f 2)
+                        YARN_ORB_VERSION=$(curl -s https://cdn.jsdelivr.net/npm/yarn/package.json | sed -n 's/.*version": "\(.*\)".*/\1/p')
                         echo "Latest version of Yarn is $YARN_ORB_VERSION"
                         else
                         YARN_ORB_VERSION="$NODE_PARAM_YARN_VERSION"
@@ -282,12 +409,12 @@ commands:
 
                             if uname -a | grep Darwin > /dev/null 2>&1; then
                             brew uninstall yarn > /dev/null 2>&1
-                            elif cat /etc/issue | grep Alpine > /dev/null 2>&1; then
+                            elif grep Alpine /etc/issue > /dev/null 2>&1; then
                             apk del yarn > /dev/null 2>&1
-                            elif cat /etc/issue | grep Debian > /dev/null 2>&1; then
+                            elif grep Debian /etc/issue > /dev/null 2>&1; then
                             $SUDO apt-get remove yarn > /dev/null 2>&1 && \
                                 $SUDO apt-get purge yarn > /dev/null 2>&1
-                            elif cat /etc/issue | grep Ubuntu > /dev/null 2>&1; then
+                            elif grep Ubuntu /etc/issue > /dev/null 2>&1; then
                             $SUDO apt-get remove yarn > /dev/null 2>&1 && \
                                 $SUDO apt-get purge yarn > /dev/null 2>&1
                             elif command -v yum > /dev/null 2>&1; then
@@ -300,17 +427,20 @@ commands:
                         fi
                     }
 
+                    # cd to home so that yarn --version will not use relative installed yarn from .yarn/releases
+                    cd ~ || echo "Cannot change directory to home directory, yarn version may be mismatched."
+
                     get_yarn_version
                     installation_check
 
                     # install yarn
                     echo "Installing YARN v$YARN_ORB_VERSION"
-                    curl -L -o yarn.tar.gz --silent "https://yarnpkg.com/downloads/$YARN_ORB_VERSION/yarn-v$YARN_ORB_VERSION.tar.gz"
+                    curl --retry 5 -L -o yarn.tar.gz --silent "https://yarnpkg.com/downloads/$YARN_ORB_VERSION/yarn-v$YARN_ORB_VERSION.tar.gz"
 
                     $SUDO tar -xzf yarn.tar.gz && rm yarn.tar.gz
 
                     $SUDO mkdir -p /opt/yarn
-                    $SUDO mv yarn-v${YARN_ORB_VERSION}/* /opt/yarn
+                    $SUDO mv yarn-v"${YARN_ORB_VERSION}"/* /opt/yarn
 
                     $SUDO rm -rf "yarn-v${YARN_ORB_VERSION}"
 
@@ -333,7 +463,7 @@ commands:
                     # test/verify version
                     echo "Verifying YARN install"
                     if yarn --version | grep "$YARN_ORB_VERSION" > /dev/null 2>&1; then
-                        echo "Success! Yarn $(yarn --version) has been installed to $(which yarn)"
+                        echo "Success! Yarn $(yarn --version) has been installed to $(command -v yarn)"
                     else
                         echo "Something went wrong; the specified version of Yarn could not be installed"
                         exit 1
@@ -341,6 +471,54 @@ commands:
                 environment:
                     NODE_PARAM_YARN_VERSION: <<parameters.version>>
                 name: Install Yarn
+    run-command:
+        description: |
+            Simple drop-in command to run commands for your Node.js application automatically.
+        parameters:
+            app-dir:
+                default: .
+                description: Path to the directory containing your package.json file. Not needed if package.json lives in the root.
+                type: string
+            npm-run:
+                default: ""
+                description: The name of the script within your package.json which you would like to run.
+                type: string
+            pkg-manager:
+                default: npm
+                description: Select the default node package manager to use. NPM v5+ Required.
+                enum:
+                    - npm
+                    - yarn
+                    - yarn-berry
+                type: enum
+            yarn-run:
+                default: ""
+                description: The name of the script within your package.json which you would like to run.
+                type: string
+        steps:
+            - run:
+                command: |-
+                    source "$BASH_ENV";
+
+                    if command -v nvm &> /dev/null; then
+                        if [ -f ".nvmrc" ]; then
+                            NVMRC_SPECIFIED_VERSION=$(<.nvmrc)
+                            nvm install "$NVMRC_SPECIFIED_VERSION"
+                            nvm use
+                        fi
+                    fi
+
+                    if [[ "$ORB_PARAM_PKG_MANAGER" == "npm" ]]; then
+                        npm run "$ORB_PARAM_NPM_RUN"
+                    else
+                        yarn run "$ORB_PARAM_YARN_RUN"
+                    fi
+                environment:
+                    ORB_PARAM_NPM_RUN: <<parameters.npm-run>>
+                    ORB_PARAM_PKG_MANAGER: <<parameters.pkg-manager>>
+                    ORB_PARAM_YARN_RUN: <<parameters.yarn-run>>
+                name: Run <<parameters.pkg-manager>> <<parameters.npm-run>>
+                working_directory: <<parameters.app-dir>>
 executors:
     default:
         description: |
@@ -349,17 +527,121 @@ executors:
         docker:
             - image: cimg/node:<<parameters.tag>>
         parameters:
+            resource_class:
+                default: large
+                description: Configure the executor resource class
+                enum:
+                    - small
+                    - medium
+                    - medium+
+                    - large
+                    - xlarge
+                    - 2xlarge
+                    - 2xlarge+
+                type: enum
             tag:
-                default: "13.11"
+                default: lts
                 description: |
                     Pick a specific cimg/node image version tag: https://hub.docker.com/r/cimg/node
                 type: string
+        resource_class: << parameters.resource_class >>
 jobs:
+    run:
+        description: |
+            Simple drop-in job to run commands for your Node.js application automatically.
+        executor:
+            name: default
+            resource_class: << parameters.resource_class >>
+            tag: << parameters.version >>
+        parameters:
+            app-dir:
+                default: ~/project
+                description: Path to the directory containing your package.json file. Not needed if package.json lives in the root.
+                type: string
+            cache-version:
+                default: v1
+                description: Change the default cache version if you need to clear the cache for any reason.
+                type: string
+            npm-run:
+                default: ""
+                description: The name of the script within your package.json which you would like to run.
+                type: string
+            override-ci-command:
+                default: ""
+                description: |
+                    By default, packages will be installed with "npm ci" or "yarn install --frozen-lockfile".
+                    Optionally supply a custom package installation command, with any additional flags needed.
+                type: string
+            pkg-manager:
+                default: npm
+                description: Select the default node package manager to use.
+                enum:
+                    - npm
+                    - yarn
+                    - yarn-berry
+                type: enum
+            resource_class:
+                default: large
+                description: Configure the executor resource class
+                enum:
+                    - small
+                    - medium
+                    - medium+
+                    - large
+                    - xlarge
+                    - 2xlarge
+                    - 2xlarge+
+                type: enum
+            setup:
+                default: []
+                description: Provide any optional steps you would like to run prior to installing the node dependencies. This is a good place to install global modules.
+                type: steps
+            version:
+                default: lts
+                description: |
+                    Pick a specific cimg/node image version tag: https://hub.docker.com/r/cimg/node
+                type: string
+            yarn-run:
+                default: ""
+                description: The name of the script within your package.json which you would like to run.
+                type: string
+        steps:
+            - checkout
+            - steps: << parameters.setup >>
+            - install-packages:
+                app-dir: <<parameters.app-dir>>
+                cache-version: <<parameters.cache-version>>
+                override-ci-command: <<parameters.override-ci-command>>
+                pkg-manager: <<parameters.pkg-manager>>
+            - run:
+                command: |-
+                    source "$BASH_ENV";
+
+                    if command -v nvm &> /dev/null; then
+                        if [ -f ".nvmrc" ]; then
+                            NVMRC_SPECIFIED_VERSION=$(<.nvmrc)
+                            nvm install "$NVMRC_SPECIFIED_VERSION"
+                            nvm use
+                        fi
+                    fi
+
+                    if [[ "$ORB_PARAM_PKG_MANAGER" == "npm" ]]; then
+                        npm run "$ORB_PARAM_NPM_RUN"
+                    else
+                        yarn run "$ORB_PARAM_YARN_RUN"
+                    fi
+                environment:
+                    ORB_PARAM_NPM_RUN: <<parameters.npm-run>>
+                    ORB_PARAM_PKG_MANAGER: <<parameters.pkg-manager>>
+                    ORB_PARAM_YARN_RUN: <<parameters.yarn-run>>
+                name: Run <<parameters.pkg-manager>> <<parameters.npm-run>>
+                working_directory: <<parameters.app-dir>>
     test:
         description: |
             Simple drop-in job to test your Node.js application automatically.
         executor:
             name: default
+            resource_class: << parameters.resource_class >>
             tag: << parameters.version >>
         parameters:
             app-dir:
@@ -382,6 +664,19 @@ jobs:
                 enum:
                     - npm
                     - yarn
+                    - yarn-berry
+                type: enum
+            resource_class:
+                default: large
+                description: Configure the executor resource class
+                enum:
+                    - small
+                    - medium
+                    - medium+
+                    - large
+                    - xlarge
+                    - 2xlarge
+                    - 2xlarge+
                 type: enum
             run-command:
                 default: test
@@ -391,10 +686,27 @@ jobs:
                 default: []
                 description: Provide any optional steps you would like to run prior to installing the node dependencies. This is a good place to install global modules.
                 type: steps
-            version:
-                default: 16.15.1
+            test-results-for:
+                default: other
                 description: |
-                    A full version tag must be specified. Example: "16.15.1" For a full list of releases, see the following: https://nodejs.org/en/download/releases
+                    Testing framework your project uses.
+                    If this is set to jest or mocha, test results will be automatically produced. When using jest, the jest-junit package is required as a dev dependency. See https://github.com/jest-community/jest-junit for more information.
+                    When using mocha, the mocha-junit-reporter and mocha-multi packages are required as dev dependency. See https://github.com/michaelleeallen/mocha-junit-reporter and https://github.com/glenjamin/mocha-multi for more information.
+                enum:
+                    - jest
+                    - mocha
+                    - other
+                type: enum
+            test-results-path:
+                default: ""
+                description: |
+                    If you use test-results-for, this will be configured automatically.
+                    If you configure test results yourself (for example in your node config files) set this to the location that you write them to, and they will be uploaded.
+                type: string
+            version:
+                default: lts
+                description: |
+                    Pick a specific cimg/node image version tag: https://hub.docker.com/r/cimg/node
                 type: string
         steps:
             - checkout
@@ -406,9 +718,13 @@ jobs:
                 pkg-manager: <<parameters.pkg-manager>>
             - when:
                 condition:
-                    equal:
-                        - npm
-                        - << parameters.pkg-manager >>
+                    and:
+                        - equal:
+                            - npm
+                            - << parameters.pkg-manager >>
+                        - equal:
+                            - other
+                            - << parameters.test-results-for >>
                 steps:
                     - run:
                         command: npm run <<parameters.run-command>>
@@ -416,14 +732,165 @@ jobs:
                         working_directory: <<parameters.app-dir>>
             - when:
                 condition:
-                    equal:
-                        - yarn
-                        - << parameters.pkg-manager >>
+                    and:
+                        - equal:
+                            - npm
+                            - << parameters.pkg-manager >>
+                        - equal:
+                            - jest
+                            - << parameters.test-results-for >>
+                steps:
+                    - run:
+                        command: npm list jest-junit || (echo "Add the package jest-junit to the dev dependencies of your project with `npm install --save-dev jest-junit`" && exit 1)
+                        name: Check for test reporter
+                        working_directory: <<parameters.app-dir>>
+                    - run:
+                        command: npm run <<parameters.run-command>> -- --reporters=default --reporters=jest-junit
+                        name: Run NPM Tests
+                        working_directory: <<parameters.app-dir>>
+            - when:
+                condition:
+                    and:
+                        - equal:
+                            - npm
+                            - << parameters.pkg-manager >>
+                        - equal:
+                            - mocha
+                            - << parameters.test-results-for >>
+                steps:
+                    - run:
+                        command: npm list mocha-junit-reporter mocha-multi || (echo "Add the packages mocha-junit-reporter & mocha-multi to the dev dependencies of your project with `npm install --save-dev mocha-junit-reporter mocha-multi`" && exit 1)
+                        name: Check for test reporter
+                        working_directory: <<parameters.app-dir>>
+                    - run:
+                        command: npm run <<parameters.run-command>> -- --reporter mocha-multi --reporter-options spec=-,mocha-junit-reporter=-
+                        name: Run NPM Tests
+                        working_directory: <<parameters.app-dir>>
+            - when:
+                condition:
+                    and:
+                        - equal:
+                            - yarn
+                            - << parameters.pkg-manager >>
+                        - equal:
+                            - other
+                            - << parameters.test-results-for >>
                 steps:
                     - run:
                         command: yarn run <<parameters.run-command>>
                         name: Run YARN Tests
                         working_directory: <<parameters.app-dir>>
+            - when:
+                condition:
+                    and:
+                        - equal:
+                            - yarn
+                            - << parameters.pkg-manager >>
+                        - equal:
+                            - jest
+                            - << parameters.test-results-for >>
+                steps:
+                    - run:
+                        command: yarn list --pattern jest-junit | grep " jest-junit@" || (echo "Add the package jest-junit to your projects dev dependencies with `yarn add --dev jest-junit`" && exit 1)
+                        name: Check for test reporter
+                        working_directory: <<parameters.app-dir>>
+                    - run:
+                        command: yarn run <<parameters.run-command>> --reporters=default --reporters=jest-junit
+                        name: Run YARN Tests
+                        working_directory: <<parameters.app-dir>>
+            - when:
+                condition:
+                    and:
+                        - equal:
+                            - yarn
+                            - << parameters.pkg-manager >>
+                        - equal:
+                            - mocha
+                            - << parameters.test-results-for >>
+                steps:
+                    - run:
+                        command: yarn list --pattern "mocha-junit-reporter|mocha-multi" | grep "mocha-junit-reporter@\|mocha-multi@" || (echo "Add the packages mocha-junit-reporter & mocha-multi to the dev dependencies of your project with `yarn add --dev mocha-junit-reporter mocha-multi`" && exit 1)
+                        name: Check for test reporter
+                        working_directory: <<parameters.app-dir>>
+                    - run:
+                        command: yarn run <<parameters.run-command>> --reporter mocha-multi --reporter-options spec=-,mocha-junit-reporter=-
+                        name: Run YARN Tests
+                        working_directory: <<parameters.app-dir>>
+            - when:
+                condition:
+                    and:
+                        - equal:
+                            - yarn-berry
+                            - << parameters.pkg-manager >>
+                        - equal:
+                            - other
+                            - << parameters.test-results-for >>
+                steps:
+                    - run:
+                        command: yarn run <<parameters.run-command>>
+                        name: Run YARN 2.x Tests
+                        working_directory: <<parameters.app-dir>>
+            - when:
+                condition:
+                    and:
+                        - equal:
+                            - yarn-berry
+                            - << parameters.pkg-manager >>
+                        - equal:
+                            - jest
+                            - << parameters.test-results-for >>
+                steps:
+                    - run:
+                        command: yarn run <<parameters.run-command>> --reporters=default --reporters=jest-junit
+                        name: Run YARN 2.x Tests
+                        working_directory: <<parameters.app-dir>>
+            - when:
+                condition:
+                    and:
+                        - equal:
+                            - yarn-berry
+                            - << parameters.pkg-manager >>
+                        - equal:
+                            - mocha
+                            - << parameters.test-results-for >>
+                steps:
+                    - run:
+                        command: yarn list --pattern "mocha-junit-reporter|mocha-multi" | grep "mocha-junit-reporter@\|mocha-multi@" || (echo "Add the packages mocha-junit-reporter & mocha-multi to the dev dependencies of your project with `yarn add --dev mocha-junit-reporter mocha-multi`" && exit 1)
+                        name: Check for test reporter
+                        working_directory: <<parameters.app-dir>>
+                    - run:
+                        command: yarn run <<parameters.run-command>> --reporter mocha-multi --reporter-options spec=-,mocha-junit-reporter=-
+                        name: Run YARN 2.x Tests
+                        working_directory: <<parameters.app-dir>>
+            - when:
+                condition: << parameters.test-results-path >>
+                steps:
+                    store_test_results:
+                        path: << parameters.test-results-path >>
+            - when:
+                condition:
+                    and:
+                        - equal:
+                            - jest
+                            - << parameters.test-results-for >>
+                        - equal:
+                            - ""
+                            - << parameters.test-results-path >>
+                steps:
+                    store_test_results:
+                        path: <<parameters.app-dir>>/junit.xml
+            - when:
+                condition:
+                    and:
+                        - equal:
+                            - mocha
+                            - << parameters.test-results-for >>
+                        - equal:
+                            - ""
+                            - << parameters.test-results-path >>
+                steps:
+                    store_test_results:
+                        path: <<parameters.app-dir>>/test-results.xml
 examples:
     install_nodejs:
         description: |
@@ -442,11 +909,51 @@ examples:
                         - checkout
                         - node/install:
                             install-yarn: true
+                            node-version: "16.13"
                         - run: node --version
             workflows:
                 test_my_app:
                     jobs:
                         - install-node-example
+    jest_test_results:
+        description: |
+            Run tests with jest and produce and upload test reports.
+            This assumes that you have configured your project to invoke jest as your test script and that you have the jest-junit package in your dev dependencies.
+        usage:
+            version: "2.1"
+            orbs:
+                node: circleci/node@x.y
+            workflows:
+                test:
+                    jobs:
+                        - node/test:
+                            test-results-for: jest
+    mocha_test_results:
+        description: |
+            Run tests with mocha and produce and upload test reports.
+            This assumes that you have configured your project to invoke mocha as your test script and that you have the mocha-junit-reporter and mocha-multi packages in your dev dependencies.
+        usage:
+            version: "2.1"
+            orbs:
+                node: circleci/node@x.y
+            workflows:
+                test:
+                    jobs:
+                        - node/test:
+                            test-results-for: mocha
+    node_npm_run:
+        description: |
+            Drop-in solution to automatically run custom npm commands for your Node.js applications.
+            This job will automatically download your code into any version node environment, install your dependencies with caching enabled, and execute your custom npm script.
+        usage:
+            version: "2.1"
+            orbs:
+                node: circleci/node@x.y
+            workflows:
+                run-npm-command:
+                    jobs:
+                        - node/run:
+                            npm-run: build
     node_test_and_deploy:
         description: |
             Drop-in solution to automatically test your Node.js applications. This job will automatically download your code into any version node environment, install your dependencies with caching enabled, and execute your testing script.
@@ -467,9 +974,22 @@ examples:
                                         - master
                             requires:
                                 - node/test
+    node_yarn_run:
+        description: |
+            Drop-in solution to automatically run custom yarn commands for your Node.js applications.
+            This job will automatically download your code into any version node environment, install your dependencies with caching enabled, and execute your custom yarn script.
+        usage:
+            version: "2.1"
+            orbs:
+                node: circleci/node@x.y
+            workflows:
+                run-npm-command:
+                    jobs:
+                        - node/run:
+                            yarn-run: build
     npm_install:
         description: |
-            By default, the "install-packages" command will attempt to utilize "npm ci". The command can however be overwriten to support an alternative package install command such as "npm install".
+            By default, the "install-packages" command will attempt to utilize "npm ci". The command can however be overwritten to support an alternative package install command such as "npm install".
         usage:
             version: "2.1"
             orbs:
@@ -479,6 +999,7 @@ examples:
                     executor: node/default
                     steps:
                         - checkout
+                        - run: sudo npm install -g npm@latest
                         - node/install-packages:
                             cache-path: ~/project/node_modules
                             override-ci-command: npm install
@@ -539,7 +1060,7 @@ examples:
                 test:
                     executor:
                         name: node/default
-                        tag: "13"
+                        tag: "16"
                     steps:
                         - checkout
                         - node/install-packages:
@@ -551,3 +1072,42 @@ examples:
                 test_my_app:
                     jobs:
                         - test
+    test_results:
+        description: |
+            Run tests with jest and produce and upload test reports.
+            This assumes that you have configured your project so that your test script will produce the junit.xml file.
+        usage:
+            version: "2.1"
+            orbs:
+                node: circleci/node@x.y
+            workflows:
+                test:
+                    jobs:
+                        - node/test:
+                            test-results-path: junit.xml
+    yarn_berry_zero_install:
+        description: |
+            Utilize the YARN v2 package manager + Zero installs with the CircleCI Node orb.
+        usage:
+            version: "2.1"
+            orbs:
+                node: circleci/node@x.y
+            jobs:
+                test:
+                    executor:
+                        name: node/default
+                        tag: "16"
+                    steps:
+                        - checkout
+                        - node/install-packages:
+                            check-cache: always
+                            pkg-manager: yarn-berry
+                            with-cache: false
+                        - run:
+                            command: yarn run test
+                            name: Run YARN tests
+            workflows:
+                test_my_app:
+                    jobs:
+                        - test
+

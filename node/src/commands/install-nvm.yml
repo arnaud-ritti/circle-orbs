@@ -1,0 +1,11 @@
+description: |
+    Install custom versions of Node.js, and optionally NPM/Yarn, in any
+    execution environment (Docker/Linux, macOS, machine) that does not have
+    it preinstalled.
+
+    Recommendation: It is highly recommended to utilize an environment such as Docker with Node preinstalled.
+
+steps:
+    - run:
+          name: Install NVM
+          command: <<include(scripts/install-nvm.sh)>>

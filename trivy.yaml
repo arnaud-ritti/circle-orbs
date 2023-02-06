@@ -2,11 +2,11 @@ version: 2.1
 description: |
     Run trivy and report errors by email
 display:
-    home_url: https://github.com/donkeycode/circle-orbs
-    source_url: https://github.com/donkeycode/circle-orbs
+    home_url: https://github.com/agence-adeliom/circle-orbs
+    source_url: https://github.com/agence-adeliom/circle-orbs
 orbs:
-    docker: donkeycode/docker@0.0.4
-    utils: donkeycode/utils@0.0.5
+    docker: agence-adeliom/docker@0.0.1
+    utils: agence-adeliom/utils@0.0.1
 commands:
     install:
         description: |
@@ -230,7 +230,7 @@ examples:
         usage:
             version: "2.1"
             orbs:
-                trivy: donkeycode/trivy@0.0.1
+                trivy: agence-adeliom/trivy@0.0.1
             workflows:
                 use-my-orb:
                     jobs:

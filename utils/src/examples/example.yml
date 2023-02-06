@@ -6,8 +6,10 @@ description: >
 usage:
   version: 2.1
   orbs:
-    utils: donkeycode/utils@0.0.1
+    utils: agence-adeliom/utils@0.0.2
   workflows:
     use-my-orb:
       jobs:
         - utils/install_git
+        - utils/install_bash
+        - utils/install_coreutils

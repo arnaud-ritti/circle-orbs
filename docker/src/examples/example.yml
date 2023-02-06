@@ -6,7 +6,7 @@ description: >
 usage:
   version: 2.1
   orbs:
-    docker: donkeycode/docker@0.0.1
+    docker: agence-adeliom/docker@0.0.1
   workflows:
     use-my-orb:
       jobs:

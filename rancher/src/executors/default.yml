@@ -1,4 +1,0 @@
-description: >
-  Use rancher cli
-docker:
-  - image: donkeycode/rancher-cli

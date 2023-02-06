@@ -1,0 +1,27 @@
+description: |
+    Select the version of Node.js to use. Uses CircleCI's highly cached convenience images built for CI.
+    Any available tag from this list can be used: https://hub.docker.com/r/cimg/node/tags
+
+parameters:
+    tag:
+        type: string
+        default: 'lts'
+        description: >
+            Pick a specific cimg/node image version tag:
+            https://hub.docker.com/r/cimg/node
+    resource_class:
+        type: enum
+        default: large
+        description: Configure the executor resource class
+        enum:
+            - small
+            - medium
+            - medium+
+            - large
+            - xlarge
+            - 2xlarge
+            - 2xlarge+
+
+docker:
+    - image: cimg/node:<<parameters.tag>>
+resource_class: << parameters.resource_class >>

@@ -18,7 +18,16 @@ parameters:
     description: "The docker registry base"
 steps:
   - setup_remote_docker:  { docker_layer_caching: true }
+  - restore_cache:
+      keys:
+          - &source-cache source-v1-{{ .Branch }}-{{ .Revision }}
+          - source-v1-{{ .Branch }}-
+          - source-v1-
   - checkout
+  - save_cache:
+      key: *source-cache
+      paths:
+          - ".git"
   - run:
       name: Prepare push Images script
       environment:

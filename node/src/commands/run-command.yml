@@ -1,0 +1,32 @@
+description: >
+    Simple drop-in command to run commands for your Node.js application automatically.
+
+parameters:
+    pkg-manager:
+        type: enum
+        enum: ['npm', 'yarn', 'yarn-berry']
+        default: 'npm'
+        description: Select the default node package manager to use. NPM v5+ Required.
+    npm-run:
+        type: string
+        default: ''
+        description: The name of the script within your package.json which you would like to run.
+    yarn-run:
+        type: string
+        default: ''
+        description: The name of the script within your package.json which you would like to run.
+    app-dir:
+        type: string
+        default: '.'
+        description: Path to the directory containing your package.json file. Not needed if package.json lives in the root.
+    
+
+steps:
+    - run:
+          name: Run <<parameters.pkg-manager>> <<parameters.npm-run>>
+          working_directory: <<parameters.app-dir>>
+          environment:
+              ORB_PARAM_PKG_MANAGER: <<parameters.pkg-manager>>
+              ORB_PARAM_NPM_RUN: <<parameters.npm-run>>
+              ORB_PARAM_YARN_RUN: <<parameters.yarn-run>>
+          command: <<include(scripts/run-commands-with.sh)>>

@@ -1,0 +1,6 @@
+description: >
+  Install ssh
+steps:
+  - run:
+      name: Install ssh
+      command: apk update && apk add openssh

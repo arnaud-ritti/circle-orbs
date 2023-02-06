@@ -6,7 +6,7 @@ description: >
 usage:
   version: 2.1
   orbs:
-    trivy: donkeycode/trivy@0.0.1
+    trivy: agence-adeliom/trivy@0.0.1
   workflows:
     use-my-orb:
       jobs:

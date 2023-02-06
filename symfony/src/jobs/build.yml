@@ -52,9 +52,17 @@ parameters:
   
 steps:
   - utils/install_git
-  - run:
-      command: apk add openssh
+  - utils/install_bash
+  - restore_cache:
+      keys:
+          - &source-symfony-cache source-symfony-v1-{{ .Branch }}-{{ .Revision }}
+          - source-symfony-v1-{{ .Branch }}-
+          - source-symfony-v1-
   - checkout
+  - save_cache:
+      key: *source-symfony-cache
+      paths:
+          - ".git"
   - setup_remote_docker:  { docker_layer_caching: true }
   - restore_cache:
       name: Get site deps
