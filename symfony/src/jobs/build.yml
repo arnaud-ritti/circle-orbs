@@ -41,6 +41,10 @@ parameters:
     type: boolean
     default: false
     description: "Set true to use docker login"
+  use_cache:
+    type: boolean
+    default: true
+    description: "Set true to use build cache"
   docker_registry: 
     type: string
     default: "${DOCKER_REGISTRY}/"
@@ -63,7 +67,7 @@ steps:
       key: *source-symfony-cache
       paths:
           - ".git"
-  - setup_remote_docker:  { docker_layer_caching: true }
+  - setup_remote_docker:  { docker_layer_caching: <<parameters.use_cache>> }
   - restore_cache:
       name: Get site deps
       keys:
@@ -90,12 +94,26 @@ steps:
       steps:
         - docker/login 
   
-  - run:
-      name: Build app
-      working_directory: ~/project
-      command: |
-          source ~/project/.circleci/determine_env.sh
-          docker build -t <<parameters.docker_registry>><<parameters.image_base_name>>:$CIRCLE_SHA1 -f ~/project/<<parameters.docker_folder>>/<<parameters.dockerfile_base_name>> .
+  - when:
+      condition: <<parameters.use_cache>>
+      steps:
+        - run:
+            name: Build app
+            working_directory: ~/project
+            command: |
+                source ~/project/.circleci/determine_env.sh
+                docker build --pull -t <<parameters.docker_registry>><<parameters.image_base_name>>:$CIRCLE_SHA1 -f ~/project/<<parameters.docker_folder>>/<<parameters.dockerfile_base_name>> .
+
+  - when:
+      condition:
+        not: <<parameters.use_cache>>
+      steps:
+        - run:
+            name: Build app (no cache)
+            working_directory: ~/project
+            command: |
+                source ~/project/.circleci/determine_env.sh
+                docker build --pull --no-cache -t <<parameters.docker_registry>><<parameters.image_base_name>>:$CIRCLE_SHA1 -f ~/project/<<parameters.docker_folder>>/<<parameters.dockerfile_base_name>> .
 
   # Need to push     
   - when:
@@ -126,16 +144,31 @@ steps:
                 mkdir -p docker-images
                 docker save -o docker-images/<<parameters.image_base_name>>.$CIRCLE_SHA1.tar <<parameters.image_base_name>>:$CIRCLE_SHA1  
 
-
   - when:
-      condition: <<parameters.use_crontab>>
+      condition:
+        and:
+          - <<parameters.use_crontab>>
+          - <<parameters.use_cache>>
       steps:
         - run:
-            name: Build crontab
+            name: Build app
             working_directory: ~/project
             command: |
                 source ~/project/.circleci/determine_env.sh
-                docker build -t <<parameters.docker_registry>><<parameters.image_crontab_name>>:$CIRCLE_SHA1 -f ~/project/<<parameters.docker_folder>>/<<parameters.dockerfile_crontab_name>> .
+                docker build --pull -t  <<parameters.docker_registry>><<parameters.image_crontab_name>>:$CIRCLE_SHA1 -f ~/project/<<parameters.docker_folder>>/<<parameters.dockerfile_crontab_name>> .
+
+  - when:
+      condition:
+        and:
+          - <<parameters.use_crontab>>
+          - not: <<parameters.use_cache>>
+      steps:
+        - run:
+            name: Build crontab (no cache)
+            working_directory: ~/project
+            command: |
+                source ~/project/.circleci/determine_env.sh
+                docker build --pull --no-cache -t <<parameters.docker_registry>><<parameters.image_crontab_name>>:$CIRCLE_SHA1 -f ~/project/<<parameters.docker_folder>>/<<parameters.dockerfile_crontab_name>> .
 
   # Need to push          
   - when:

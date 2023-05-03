@@ -53,6 +53,10 @@ jobs:
                 default: apps/api
                 description: The symfony base directory
                 type: string
+            use_cache:
+                default: true
+                description: Set true to use build cache
+                type: boolean
             use_crontab:
                 default: false
                 description: |
@@ -85,7 +89,7 @@ jobs:
                 paths:
                     - .git
             - setup_remote_docker:
-                docker_layer_caching: true
+                docker_layer_caching: <<parameters.use_cache>>
             - restore_cache:
                 keys:
                     - v1-dependencies-<<parameters.symfony_folder>>-{{ checksum "~/project/<<parameters.symfony_folder>>/composer.lock" }}
@@ -109,12 +113,25 @@ jobs:
                 condition: <<parameters.use_docker_login>>
                 steps:
                     - docker/login
-            - run:
-                command: |
-                    source ~/project/.circleci/determine_env.sh
-                    docker build -t <<parameters.docker_registry>><<parameters.image_base_name>>:$CIRCLE_SHA1 -f ~/project/<<parameters.docker_folder>>/<<parameters.dockerfile_base_name>> .
-                name: Build app
-                working_directory: ~/project
+            - when:
+                condition: <<parameters.use_cache>>
+                steps:
+                    - run:
+                        command: |
+                            source ~/project/.circleci/determine_env.sh
+                            docker build --pull -t <<parameters.docker_registry>><<parameters.image_base_name>>:$CIRCLE_SHA1 -f ~/project/<<parameters.docker_folder>>/<<parameters.dockerfile_base_name>> .
+                        name: Build app
+                        working_directory: ~/project
+            - when:
+                condition:
+                    not: <<parameters.use_cache>>
+                steps:
+                    - run:
+                        command: |
+                            source ~/project/.circleci/determine_env.sh
+                            docker build --pull --no-cache -t <<parameters.docker_registry>><<parameters.image_base_name>>:$CIRCLE_SHA1 -f ~/project/<<parameters.docker_folder>>/<<parameters.dockerfile_base_name>> .
+                        name: Build app (no cache)
+                        working_directory: ~/project
             - when:
                 condition:
                     or:
@@ -138,13 +155,28 @@ jobs:
                         name: Save image to workspace
                         working_directory: ~/project
             - when:
-                condition: <<parameters.use_crontab>>
+                condition:
+                    and:
+                        - <<parameters.use_crontab>>
+                        - <<parameters.use_cache>>
                 steps:
                     - run:
                         command: |
                             source ~/project/.circleci/determine_env.sh
-                            docker build -t <<parameters.docker_registry>><<parameters.image_crontab_name>>:$CIRCLE_SHA1 -f ~/project/<<parameters.docker_folder>>/<<parameters.dockerfile_crontab_name>> .
-                        name: Build crontab
+                            docker build --pull -t  <<parameters.docker_registry>><<parameters.image_crontab_name>>:$CIRCLE_SHA1 -f ~/project/<<parameters.docker_folder>>/<<parameters.dockerfile_crontab_name>> .
+                        name: Build app
+                        working_directory: ~/project
+            - when:
+                condition:
+                    and:
+                        - <<parameters.use_crontab>>
+                        - not: <<parameters.use_cache>>
+                steps:
+                    - run:
+                        command: |
+                            source ~/project/.circleci/determine_env.sh
+                            docker build --pull --no-cache -t <<parameters.docker_registry>><<parameters.image_crontab_name>>:$CIRCLE_SHA1 -f ~/project/<<parameters.docker_folder>>/<<parameters.dockerfile_crontab_name>> .
+                        name: Build crontab (no cache)
                         working_directory: ~/project
             - when:
                 condition:
