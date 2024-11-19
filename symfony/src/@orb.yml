@@ -12,6 +12,6 @@ display:
 
 # If your orb requires other orbs, you can import them like this. Otherwise remove the "orbs" stanza.
 orbs:
- node: agence-adeliom/node@0.0.6
+ node: agence-adeliom/node@0.0.10
  docker: agence-adeliom/docker@0.0.3
  utils: agence-adeliom/utils@0.0.9

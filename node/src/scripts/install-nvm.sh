@@ -2,7 +2,8 @@
 if command -v nvm &> /dev/null; then
     echo "nvm is already installed. Skipping nvm install.";
 else
-    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash;
+    apk add --no-cache libstdc++ coreutils curl bash
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.35.1/install.sh | bash;
     
     echo 'export NVM_DIR="$HOME/.nvm"' >> "$BASH_ENV";
     echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" --no-use' >> "$BASH_ENV";

@@ -6,7 +6,7 @@ display:
     source_url: https://github.com/agence-adeliom/circle-orbs
 orbs:
     docker: agence-adeliom/docker@0.0.3
-    node: agence-adeliom/node@0.0.6
+    node: agence-adeliom/node@0.0.10
     utils: agence-adeliom/utils@0.0.9
 executors:
     default:
